@@ -1,57 +1,70 @@
-import numpy as np
 import cv2
+import numpy as np
+from scipy.signal import butter, filtfilt
+import IO
+import pylab
+from lib.processors_noopenmdao import findFaceGetPulse  # Import required class from lib module
 
-input_video = '/Users/saadnaik/Documents/Learning/vitalLenz/input_file.MOV'
-output_video = "/Users/saadnaik/Documents/Learning/vitalLenz/ouput_file.mp4"
+# Function to amplify temporal variations with enhanced color visualization
+# def amplify_temporal_variations(frame, factor):
+#     # Apply temporal filtering (butterworth bandpass filter)
+#     # Modify these parameters as needed
+#     lowcut = 0.8
+#     highcut = 1.9
+#     fps = 30.0
+#     nyquist = 0.5 * fps
+#     low = lowcut / nyquist
+#     high = highcut / nyquist
 
-# Load pre-trained face detection cascade
-face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+#     # Use scipy.signal.butter for temporal filtering
+#     b, a = butter(2, [low, high], btype='band')
+#     filtered_frame = filtfilt(b, a, frame, axis=0)
 
-# Read input video file
-cap = cv2.VideoCapture(input_video)
+#     # Amplify temporal variations
+#     amplified_frame = frame + factor * filtered_frame
 
-# Create VideoWriter object for output video
-fourcc = cv2.VideoWriter.fourcc(*'mp4v')
-out = cv2.VideoWriter(output_video, fourcc, 30.0, (640, 480))
+#     # Clip values to valid range (0-255)
+#     amplified_frame = np.clip(amplified_frame, 0, 255)
 
-while cap.isOpened():
-    ret, frame = cap.read()
-    if not ret:
-        break
+#     # Enhance color saturation for visualization
+#     amplified_frame = cv2.convertScaleAbs(amplified_frame, alpha=1.5, beta=0)
 
-    # Convert frame to grayscale for face detection
-    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+#     # Apply dynamic color mapping for better visualization
+#     amplified_frame = cv2.applyColorMap(amplified_frame, cv2.COLORMAP_JET)
 
-    # Detect faces in the frame
-    faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
+#     return amplified_frame
 
-    # Process each detected face
-    for (x, y, w, h) in faces:
-        # Extract region of interest (face)
-        face_roi = frame[y:y+h, x:x+w]
+if __name__ == "__main__":
+    # Read input video file
+    cap = cv2.VideoCapture(IO.inputFile)
 
-        # Split face region into RGB channels
-        b, g, r = cv2.split(face_roi)
+    # Get input video properties
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
-        # Increase red tone sensitivity (example: simple contrast stretching)
-        r_enhanced = cv2.equalizeHist(r)
+    # Create VideoWriter object for output video
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    out = cv2.VideoWriter(IO.outputFile, fourcc, fps, (width, height))
 
-        # Merge enhanced red channel with original face region
-        enhanced_face_roi = cv2.merge((b, g, r_enhanced))
+    # Amplification factor (adjust as needed)
+    factor = 20
 
-        # Replace the original face region with the enhanced version
-        frame[y:y+h, x:x+w] = enhanced_face_roi
+    # Initialize the frame processor
+    processor = findFaceGetPulse(bpm_limits=[50, 160], data_spike_limit=2500, face_detector_smoothness=10)
 
-    # Write processed frame to output video
-    out.write(frame)
+    while cap.isOpened():
+        ret, frame = cap.read()
+        if not ret:
+            break
 
-# Release video capture and writer objects
-cap.release()
-out.release()
-cv2.destroyAllWindows()
+        # Process the frame using the frame processor with enhanced visualization
+        processed_frame = amplify_temporal_variations(frame, factor)
 
-print("Running")
+        # Write processed frame to output video
+        out.write(processed_frame)
 
-
-
-
+    # Release video capture and writer objects
+    cap.release()
+    out.release()
+    cv2.destroyAllWindows()
